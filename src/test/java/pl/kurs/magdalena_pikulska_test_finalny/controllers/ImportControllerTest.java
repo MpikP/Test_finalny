@@ -14,6 +14,8 @@ import pl.kurs.magdalena_pikulska_test_finalny.dto.ImportStatusDto;
 import pl.kurs.magdalena_pikulska_test_finalny.models.ImportStatus;
 import pl.kurs.magdalena_pikulska_test_finalny.services.ImportService;
 
+import java.util.concurrent.CompletableFuture;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -58,12 +60,16 @@ class ImportControllerTest {
     @Test
     public void testUploadFile_Success() throws Exception {
         MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "aaa,bbb".getBytes());
-        when(importService.initiateImport(any(MultipartFile.class))).thenReturn("import-id-123");
+
+        CompletableFuture<Long> resultFuture = new CompletableFuture<>();
+        resultFuture.complete(123L);
+
+        when(importService.savePersonFromCsvFile(any(MultipartFile.class))).thenReturn(resultFuture);
 
         mockMvc.perform(multipart("/api/import/upload")
                         .file(file))
                 .andExpect(status().isOk())
-                .andExpect(content().string("Import initiated with ID: import-id-123"));
+                .andExpect(content().string("ImportId: 123"));
     }
 
     @Test

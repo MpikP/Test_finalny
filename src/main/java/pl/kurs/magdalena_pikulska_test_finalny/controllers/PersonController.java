@@ -7,6 +7,7 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import pl.kurs.magdalena_pikulska_test_finalny.commands.*;
@@ -18,7 +19,6 @@ import pl.kurs.magdalena_pikulska_test_finalny.services.PersonQueryService;
 
 @ComponentScan
 @RestController
-//@PreAuthorize("hasRole('ADMIN')"
 @RequestMapping("/api/people")
 public class PersonController {
     private ModelMapper mapper;
@@ -34,6 +34,7 @@ public class PersonController {
     }
 
     @GetMapping
+    @PreAuthorize("hasRole('ADMIN') or hasRole('EMPLOYEE')")
     ResponseEntity<Page<PersonDto>> getPeopleByTypeAndParams(@Validated @ModelAttribute FindPersonCommand command) {
         Page<Person> peopleByCriteria = personQueryService.getPersonByCriteria(command);
         Page<PersonDto> pagePeopleDto = peopleByCriteria.map(
@@ -44,6 +45,7 @@ public class PersonController {
 
     @Transactional
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<PersonDto> createPerson(@Validated @RequestBody CreatePersonCommand command) {
         Person newPerson = convertCommandToPerson(command);
         Person addedPerson = dynamicManagementService.addPerson(newPerson);
@@ -53,6 +55,7 @@ public class PersonController {
     }
 
     @PutMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> updatePerson(@Validated @RequestBody UpdatePersonCommand command) {
         Person updatedPerson = convertCommandToPerson(command);
         Person person = dynamicManagementService.updatePerson(updatedPerson);

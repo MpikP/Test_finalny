@@ -1,9 +1,5 @@
 package pl.kurs.magdalena_pikulska_test_finalny.services;
 
-import jakarta.transaction.Transactional;
-import org.apache.commons.csv.CSVFormat;
-import org.apache.commons.csv.CSVRecord;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -11,11 +7,11 @@ import pl.kurs.magdalena_pikulska_test_finalny.models.*;
 import pl.kurs.magdalena_pikulska_test_finalny.repositories.ImportStatusRepository;
 import pl.kurs.magdalena_pikulska_test_finalny.repositories.PersonRepository;
 
+import org.springframework.transaction.annotation.Transactional;
+
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.io.InputStreamReader;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -26,10 +22,10 @@ import java.util.concurrent.locks.ReentrantLock;
 @Service
 public class ImportService extends GenericManagementService<ImportStatus, ImportStatusRepository> {
 
-    private static Lock importLock;
     private PersonRepository personRepository;
-
     private ImportStatusRepository importStatusRepository;
+    private final int batchSize = 50000;
+    private final Lock importLock = new ReentrantLock();
 
     public ImportService(ImportStatusRepository repository, PersonRepository personRepository, ImportStatusRepository importStatusRepository) {
         super(repository);
@@ -37,119 +33,88 @@ public class ImportService extends GenericManagementService<ImportStatus, Import
         this.importStatusRepository = importStatusRepository;
     }
 
-    private static final int THREAD_COUNT = 10;
-    private static final int QUEUE_CAPACITY = 10000;
-    private static final int BATCH_SIZE = 5000;
-    public String initiateImport(MultipartFile file) {
+    @Async
+    @Transactional
+    public CompletableFuture<Long> savePersonFromCsvFile(MultipartFile file) throws Exception {
         if (!importLock.tryLock()) {
-            throw new IllegalArgumentException("Other import is in progress.");
+            throw new IllegalArgumentException("Another import is already in progress");
         }
 
-        ImportStatus importStatus = newImportStatus();
-
-
+        CompletableFuture<Long> resultFuture = new CompletableFuture<>();
         try {
-            Path tempFile = Files.createTempFile("temp", ".csv");
-            Files.copy(file.getInputStream(), tempFile, StandardCopyOption.REPLACE_EXISTING);
+            ImportStatus importStatus = initializeImportStatus();
+            processCsvFile(file, importStatus);
+            updateImportStatusAsCompleted(importStatus);
+            resultFuture.complete(importStatus.getId());
+        } catch (Exception e) {
+            throw new Exception("Failed to save persons from CSV file", e);
+        } finally {
+            importLock.unlock();
+        }
 
-            BlockingQueue<CSVRecord> queue = new LinkedBlockingQueue<>(QUEUE_CAPACITY);
-            ExecutorService executor = Executors.newFixedThreadPool(THREAD_COUNT);
+        return resultFuture;
+    }
 
-            try {
-                startReaderThread(tempFile, queue);
-                startWorkerThreads(queue, executor, importStatus);
-
-                executor.shutdown();
-                if (!executor.awaitTermination(1, TimeUnit.SECONDS)) {
-                    executor.shutdownNow();
+    public List<Person> processCsvFile(final MultipartFile file, ImportStatus importStatus) throws Exception {
+        int counter = 0;
+        final List<Person> personList = new ArrayList<>();
+        try {
+            try (final BufferedReader br = new BufferedReader(new InputStreamReader(file.getInputStream()))) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                    counter++;
+                    final String[] data = line.split(",");
+                    final Person person = processRecord(data);
+                    if (person != null) {
+                        personList.add(person);
+                    }
+                    if (counter % 5000 == 0) {
+                        personRepository.saveAll(personList);
+                        personList.clear();
+                        updateImportStatus(importStatus, counter);
+                    }
                 }
-
-                updateImportStatus(importStatus, "COMPLETED", LocalDateTime.now());
-            } catch (Exception e) {
-                updateImportStatus(importStatus, "FAILED", e.getMessage());
-            } finally {
-                Files.deleteIfExists(tempFile);
-                importLock.unlock();
+                return personList;
             }
         } catch (IOException e) {
-            updateImportStatus(importStatus, "FAILED", e.getMessage());
-        }
-
-        return importStatus.getId().toString();
-    }
-
-    private void startReaderThread(Path tempFile, BlockingQueue<CSVRecord> queue) {
-        new Thread(() -> {
-            try (BufferedReader reader = Files.newBufferedReader(tempFile)) {
-                Iterable<CSVRecord> records = CSVFormat.DEFAULT.withFirstRecordAsHeader().parse(reader);
-                for (CSVRecord record : records) {
-                    queue.put(record);
-                }
-                int counter = queue.size() < THREAD_COUNT ? queue.size() : THREAD_COUNT;
-                for (int i = 0; i < counter; i++) {
-                    queue.put(null);
-                }
-            } catch (IOException | InterruptedException e) {
-                e.printStackTrace();
-            }
-        }).start();
-    }
-
-    private void startWorkerThreads(BlockingQueue<CSVRecord> queue, ExecutorService executor, ImportStatus importStatus) {
-        List<Future<?>> futures = new ArrayList<>();
-
-        for (int i = 0; i < THREAD_COUNT; i++) {
-            Future<?> future = executor.submit(() -> {
-                List<Person> batch = new ArrayList<>(BATCH_SIZE);
-                try {
-                    while (true) {
-                        CSVRecord record = queue.take();
-                        if (record == null) {
-                            if (!batch.isEmpty()) {
-                                saveBatch(batch);
-                                updateProcessedCount(importStatus, batch.size());
-                                batch.clear();
-                            }
-                            break;
-                        }
-                        Person person = processRecord(record);
-                        if (person != null) {
-                            batch.add(person);
-                        }
-                        if (batch.size() >= BATCH_SIZE) {
-                            saveBatch(batch);
-                            updateProcessedCount(importStatus, batch.size());
-                            batch.clear();
-                        }
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            });
-            futures.add(future);
-        }
-
-        try {
-            for (Future<?> future : futures) {
-                future.get(); // Wait for threads to complete
-            }
-        } catch (InterruptedException | ExecutionException e) {
-            e.printStackTrace(); // Log or handle exceptions
+            throw new Exception("Failed to parse CSV file", e);
         }
     }
 
+    private void updateImportStatus(ImportStatus importStatus, int processedCount) {
+        importStatus.setProcessedCount(processedCount);
+        importStatus.setStatus("IN PROGRESS");
+        importStatusRepository.save(importStatus);
+    }
 
-    @Transactional
-    public Person processRecord(CSVRecord record) {
-        String type = record.get("type");
-        String firstName = record.get("firstName");
-        String lastName = record.get("lastName");
-        String pesel = record.get("pesel");
-        double height = Double.parseDouble(record.get("height"));
-        double weight = Double.parseDouble(record.get("weight"));
-        String emailAddress = record.get("emailAddress");
+    private void updateImportStatusAsCompleted(ImportStatus importStatus) {
+        importStatus.setStatus("COMPLETED");
+        importStatus.setEndDate(LocalDateTime.now());
+        importStatusRepository.save(importStatus);
+    }
+
+    private ImportStatus initializeImportStatus() {
+        ImportStatus importStatus = new ImportStatus();
+        importStatus.setStatus("IN_PROGRESS");
+        importStatus.setCreatedDate(LocalDateTime.now());
+        importStatus.setStartDate(LocalDateTime.now());
+        importStatus.setProcessedCount(0);
+        importStatusRepository.save(importStatus);
+        return importStatus;
+    }
+
+    public Person processRecord(String[] line) {
+        if (line.length < 7) {
+            return null;
+        }
+
+        String type = line[0];
+        String firstName = line[1];
+        String lastName = line[2];
+        String pesel = line[3];
+        double height = Double.parseDouble(line[4]);
+        double weight = Double.parseDouble(line[5]);
+        String emailAddress = line[6];
 
         Person person;
         switch (type) {
@@ -158,15 +123,19 @@ public class ImportService extends GenericManagementService<ImportStatus, Import
                 break;
             case "Student":
                 person = new Student();
-                ((Student) person).setScholarshipAmount(Double.parseDouble(record.get("scholarshipAmount")));
-                ((Student) person).setStudyField(record.get("studyField"));
-                ((Student) person).setGraduatedUniversity(record.get("graduatedUniversity"));
-                ((Student) person).setStudyYear(Integer.parseInt(record.get("studyYear")));
+                if (line.length >= 11) {
+                    ((Student) person).setScholarshipAmount(Double.parseDouble(line[7]));
+                    ((Student) person).setStudyField(line[8]);
+                    ((Student) person).setGraduatedUniversity(line[9]);
+                    ((Student) person).setStudyYear(Integer.parseInt(line[10]));
+                }
                 break;
             case "Pensioner":
                 person = new Pensioner();
-                ((Pensioner) person).setPensionAmount(Double.parseDouble(record.get("pensionAmount")));
-                ((Pensioner) person).setWorkedYear(Integer.parseInt(record.get("workedYear")));
+                if (line.length >= 10) {
+                    ((Pensioner) person).setPensionAmount(Double.parseDouble(line[7]));
+                    ((Pensioner) person).setWorkedYear(Integer.parseInt(line[8]));
+                }
                 break;
             default:
                 return null;
@@ -181,44 +150,4 @@ public class ImportService extends GenericManagementService<ImportStatus, Import
 
         return person;
     }
-
-    @Transactional
-    public void saveBatch(List<Person> batch) {
-        personRepository.saveAll(batch);
-    }
-
-    @Transactional
-    private ImportStatus newImportStatus(){
-        ImportStatus importStatus = new ImportStatus();
-        importStatus.setStatus("STARTED");
-        importStatus.setCreatedDate(LocalDateTime.now());
-        importStatus = importStatusRepository.save(importStatus);
-        return importStatus;
-    }
-    @Transactional
-    private void updateProcessedCount(ImportStatus importStatus, int count) {
-        importStatus.incrementProcessedCount(count);
-        importStatus.setStatus("IN PROGRESS");
-        importStatusRepository.save(importStatus);
-    }
-
-    @Transactional
-    private void updateImportStatus(ImportStatus importStatus, String status, LocalDateTime endDate) {
-        importStatus.setStatus(status);
-        importStatus.setEndDate(endDate);
-        importStatusRepository.save(importStatus);
-    }
-
-    @Transactional
-    private void updateImportStatus(ImportStatus importStatus, String status, String errorMessage) {
-        importStatus.setStatus(status);
-        importStatus.setErrorMessage(errorMessage);
-        importStatusRepository.save(importStatus);
-    }
-
-
-    public ImportStatus getStatus(Long id) {
-        return getById(id);
-    }
-
 }

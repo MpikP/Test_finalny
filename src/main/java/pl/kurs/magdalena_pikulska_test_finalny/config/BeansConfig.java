@@ -20,16 +20,16 @@ public class BeansConfig {
         return modelMapper;
     }
 
-    @Bean
-    public TaskExecutor taskExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(10);
-        executor.setMaxPoolSize(20);
-        executor.setQueueCapacity(50);
-        executor.setThreadNamePrefix("ImportTaskExecutor-");
-        executor.initialize();
-        return executor;
-    }
+//    @Bean
+//    public TaskExecutor taskExecutor() {
+//        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+//        executor.setCorePoolSize(10);
+//        executor.setMaxPoolSize(20);
+//        executor.setQueueCapacity(50);
+//        executor.setThreadNamePrefix("ImportTaskExecutor-");
+//        executor.initialize();
+//        return executor;
+//    }
 
 
 
