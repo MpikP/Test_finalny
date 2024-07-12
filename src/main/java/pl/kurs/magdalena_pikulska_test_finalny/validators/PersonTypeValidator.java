@@ -19,7 +19,7 @@ public class PersonTypeValidator implements ConstraintValidator<PersonType, Stri
         if (s == null)
             return true;
 
-        people = Arrays.asList(peopleString.split(", "));
+        people = Arrays.asList(peopleString.split(","));
         return people.contains(s.toLowerCase());
     }
 

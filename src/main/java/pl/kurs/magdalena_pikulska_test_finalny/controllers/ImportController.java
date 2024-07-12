@@ -7,7 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
+//import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import pl.kurs.magdalena_pikulska_test_finalny.dto.ImportStatusDto;
@@ -19,7 +19,6 @@ import java.util.concurrent.CompletableFuture;
 
 @ComponentScan
 @RestController
-//@PreAuthorize("hasRole('ADMIN')"
 @RequestMapping("/api/import")
 public class ImportController {
 
@@ -32,7 +31,7 @@ public class ImportController {
     }
 
     @PostMapping(value = "/upload", consumes = {MediaType.MULTIPART_FORM_DATA_VALUE}, produces = "application/json")
-    @PreAuthorize("hasRole('IMPORTER')")
+    //@PreAuthorize("hasRole('IMPORTER')")
     public ResponseEntity uploadFile(@RequestParam("file") MultipartFile file) throws Exception {
         if (file.isEmpty()) {
             return ResponseEntity.badRequest().body("There is no file to import.");
@@ -52,7 +51,7 @@ public class ImportController {
     }
 
     @GetMapping("/status/{id}")
-    @PreAuthorize("hasRole('IMPORTER')")
+    //@PreAuthorize("hasRole('IMPORTER')")
     public ResponseEntity<ImportStatusDto> getImportStatus(@PathVariable Long id) {
         ImportStatus status = importService.getById(id);
         ImportStatusDto statusDto = mapper.map(status, ImportStatusDto.class);

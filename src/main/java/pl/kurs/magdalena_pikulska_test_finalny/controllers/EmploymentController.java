@@ -7,7 +7,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
+//import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import pl.kurs.magdalena_pikulska_test_finalny.commands.CreateEmploymentCommand;
@@ -27,18 +27,16 @@ public class EmploymentController {
     private ModelMapper mapper;
     private EmploymentService employmentService;
     private EmployeeService employeeService;
-    private PersonService personService;
 
-    public EmploymentController(ModelMapper mapper, EmploymentService employmentService, EmployeeService employeeService, PersonService personService) {
+    public EmploymentController(ModelMapper mapper, EmploymentService employmentService, EmployeeService employeeService) {
         this.mapper = mapper;
         this.employmentService = employmentService;
         this.employeeService = employeeService;
-        this.personService = personService;
     }
 
     @Transactional
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN') or hasRole('EMPLOYEE')")
+    //@PreAuthorize("hasRole('ADMIN') or hasRole('EMPLOYEE')")
     public ResponseEntity<?> createEmployment(@Validated @RequestBody CreateEmploymentCommand command) {
         Employment newEmployment = mapper.map(command, Employment.class);
 
@@ -50,7 +48,7 @@ public class EmploymentController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN') or hasRole('EMPLOYEE')")
+    //@PreAuthorize("hasRole('ADMIN') or hasRole('EMPLOYEE')")
     ResponseEntity<Page<EmploymentWithEmployeeDto>> getEmploymentsByParams(@Validated @ModelAttribute FindEmploymentCommand command) {
         Page<Employment> employmentsByCriteria = employmentService.getEmploymentByCriteria(command);
         Page<EmploymentWithEmployeeDto> pageEmploymentsDto = employmentsByCriteria.map(
@@ -69,7 +67,7 @@ public class EmploymentController {
 
     @Transactional
     @PutMapping()
-    @PreAuthorize("hasRole('ADMIN') or hasRole('EMPLOYEE')")
+    //@PreAuthorize("hasRole('ADMIN') or hasRole('EMPLOYEE')")
     public ResponseEntity<?> updateEmployment(@Validated @RequestBody UpdateEmploymentCommand command) {
         Employment updatedEmployment = mapper.map(command, Employment.class);
         updatedEmployment.setEmployee(employeeService.getById(command.getIdEmployee()));

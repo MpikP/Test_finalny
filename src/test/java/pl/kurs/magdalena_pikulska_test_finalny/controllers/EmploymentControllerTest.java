@@ -19,11 +19,14 @@ import pl.kurs.magdalena_pikulska_test_finalny.models.Employee;
 import pl.kurs.magdalena_pikulska_test_finalny.models.Employment;
 import pl.kurs.magdalena_pikulska_test_finalny.services.EmployeeService;
 import pl.kurs.magdalena_pikulska_test_finalny.services.EmploymentService;
-
+import org.junit.jupiter.api.Assertions;
 import java.time.LocalDate;
 import java.util.Arrays;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -184,6 +187,21 @@ class EmploymentControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(updateEmploymentCommand)))
                 .andExpect(status().isConflict());
+    }
+
+    @Test
+    public void addEmploymentShouldHandleandlesOptimisticLockException() {
+
+        Employment employment = new Employment();
+
+        doThrow(OptimisticLockingFailureException.class).when(employmentService).edit(any());
+
+        Assertions.assertThrows(OptimisticLockingFailureException.class, () -> {
+            employmentService.edit(employment);
+        });
+
+        verify(employmentService, times(1)).edit(any());
+
     }
 
 }

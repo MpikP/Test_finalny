@@ -2,7 +2,7 @@ package pl.kurs.magdalena_pikulska_test_finalny.services;
 
 import jakarta.persistence.*;
 import jakarta.persistence.criteria.*;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import jakarta.persistence.OptimisticLockException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Page;
@@ -16,6 +16,7 @@ import pl.kurs.magdalena_pikulska_test_finalny.repositories.EmploymentRepository
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 public class EmploymentService extends GenericManagementService<Employment, EmploymentRepository> {
@@ -32,9 +33,14 @@ public class EmploymentService extends GenericManagementService<Employment, Empl
     @Transactional
     public Employment update(Employment employment) {
         try {
+            Employment existingEmployment = getById(employment.getId());
+            if (!Objects.equals(employment.getVersion(), existingEmployment.getVersion())) {
+                throw new OptimisticLockingFailureException("Data has been modified by another transaction");
+            }
             if (ifDatesAreNotCorrect(employment.getEmployee().getId(), employment.getStartDate())) {
                 throw new IllegalArgumentException("Dates overlap with an existing employment.");
             }
+            employment.setVersion(existingEmployment.getVersion());
 
             return edit(employment);
         } catch (OptimisticLockException e) {
@@ -50,9 +56,16 @@ public class EmploymentService extends GenericManagementService<Employment, Empl
         }
 
         Employment currentEmployment = getCurrentByEmployeeId(employment.getEmployee().getId());
+
         if (currentEmployment.getId() != null && currentEmployment.getEndDate() == null) {
             LocalDate newEndDate = employment.getStartDate().minusDays(1);
             currentEmployment.setEndDate(newEndDate);
+
+            Employment existingEmployment = getById(currentEmployment.getId());
+            if (!Objects.equals(currentEmployment.getVersion(), existingEmployment.getVersion())) {
+                throw new OptimisticLockingFailureException("Data has been modified by another transaction");
+            }
+
             try {
                 edit(currentEmployment);
             } catch (OptimisticLockException e) {
@@ -64,7 +77,7 @@ public class EmploymentService extends GenericManagementService<Employment, Empl
     }
 
 
-    @Transactional
+    @Transactional(readOnly = true)
     public Page<Employment> getEmploymentByCriteria(FindEmploymentCommand command) {
         CriteriaBuilder criteriaBuilder = entityManager.getCriteriaBuilder();
         CriteriaQuery<Employment> query = criteriaBuilder.createQuery(Employment.class);
@@ -110,23 +123,24 @@ public class EmploymentService extends GenericManagementService<Employment, Empl
         query.where(predicate);
 
         TypedQuery<Employment> typedQuery = entityManager.createQuery(query);
-        List<Employment> results = typedQuery.getResultList();
-
 
         int pageNumber = 0;
-        int pageSize = results.size() == 0 ? 1 : results.size();
+        int pageSize = 10;
         if (command.getPage() != null && command.getSize() != null) {
             pageNumber = command.getPageable().getPageNumber();
             pageSize = command.getPageable().getPageSize();
         }
+        typedQuery.setFirstResult(pageNumber * pageSize);
+        typedQuery.setMaxResults(pageSize);
+
+        List<Employment> results = typedQuery.getResultList();
+
         Pageable pageable = PageRequest.of(pageNumber, pageSize);
 
         int totalResults = results.size();
-        int fromIndex = pageNumber * pageSize;
-        int toIndex = Math.min(fromIndex + pageSize, totalResults);
-        List<Employment> pagedResults = results.subList(fromIndex, toIndex);
 
-        Page<Employment> page = new PageImpl<>(pagedResults, pageable, totalResults);
+        Page<Employment> page = new PageImpl<>(results, pageable, totalResults);
+
         return page;
 
     }
@@ -172,4 +186,8 @@ public class EmploymentService extends GenericManagementService<Employment, Empl
         Long qty = query.getSingleResult();
         return qty;
     }
+
+//    public Employment getById(Long id) {
+//        return getById(id);
+//    }
 }

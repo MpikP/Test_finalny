@@ -4,11 +4,13 @@ import jakarta.persistence.OptimisticLockException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import pl.kurs.magdalena_pikulska_test_finalny.factory.PersonServiceFactory;
+import pl.kurs.magdalena_pikulska_test_finalny.models.Employment;
 import pl.kurs.magdalena_pikulska_test_finalny.models.Identificationable;
 import pl.kurs.magdalena_pikulska_test_finalny.models.Person;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 public class DynamicManagementService {
@@ -32,6 +34,11 @@ public class DynamicManagementService {
     public <T extends Identificationable> T updatePerson(Person person) {
         try {
             IPersonService<T> service = factory.getService(person.getClass());
+            Person existingPerson = (Person) service.getById(person.getId());
+            if (!Objects.equals(existingPerson.getVersion(), person.getVersion())) {
+                throw new OptimisticLockingFailureException("Data has been modified by another transaction");
+            }
+            person.setVersion(existingPerson.getVersion());
             return service.edit((T) person);
         } catch (OptimisticLockException e) {
             throw new OptimisticLockingFailureException("Data has been modified by another transaction");

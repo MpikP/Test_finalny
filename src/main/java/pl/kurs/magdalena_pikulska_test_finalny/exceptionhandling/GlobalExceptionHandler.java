@@ -1,5 +1,6 @@
 package pl.kurs.magdalena_pikulska_test_finalny.exceptionhandling;
 
+import jakarta.persistence.EntityNotFoundException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -76,6 +77,16 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(SQLException.class)
     public ResponseEntity<ExceptionResponseBodyDto> handleSQLIntegrityConstraintViolationException(SQLException e) {
+        ExceptionResponseBodyDto exceptionResponseBodyDto = new ExceptionResponseBodyDto(
+                List.of(e.getMessage()),
+                "BAD_REQUEST",
+                Timestamp.from(Instant.now())
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(exceptionResponseBodyDto);
+    }
+
+    @ExceptionHandler(EntityNotFoundException.class)
+    public ResponseEntity<ExceptionResponseBodyDto> handleEntityNotFoundExceptionException(EntityNotFoundException e) {
         ExceptionResponseBodyDto exceptionResponseBodyDto = new ExceptionResponseBodyDto(
                 List.of(e.getMessage()),
                 "BAD_REQUEST",

@@ -4,7 +4,9 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.TypedQuery;
 import jakarta.persistence.criteria.*;
-import jakarta.transaction.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -14,6 +16,7 @@ import pl.kurs.magdalena_pikulska_test_finalny.commands.FindPersonCommand;
 import pl.kurs.magdalena_pikulska_test_finalny.models.*;
 
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.List;
 
 @Component
@@ -22,7 +25,10 @@ public class PersonQueryService {
     @PersistenceContext
     private EntityManager entityManager;
 
-    @Transactional
+    @Autowired
+    private PersonService personService;
+
+    @Transactional(readOnly = true)
     public Page<Person> getPersonByCriteria(FindPersonCommand command) {
         CriteriaBuilder criteriaBuilder = entityManager.getCriteriaBuilder();
         CriteriaQuery<Person> query = criteriaBuilder.createQuery(Person.class);
@@ -31,19 +37,7 @@ public class PersonQueryService {
         Predicate predicate = criteriaBuilder.conjunction();
 
         if (command.getType() != null) {
-            switch (command.getType().toLowerCase()) {
-                case "student":
-                    predicate = criteriaBuilder.and(predicate, criteriaBuilder.equal(root.type(), Student.class));
-                    break;
-                case "employee":
-                    predicate = criteriaBuilder.and(predicate, criteriaBuilder.equal(root.type(), Employee.class));
-                    break;
-                case "pensioner":
-                    predicate = criteriaBuilder.and(predicate, criteriaBuilder.equal(root.type(), Pensioner.class));
-                    break;
-                default:
-                    throw new IllegalArgumentException("Unknown person type: " + command.getType());
-            }
+            predicate = criteriaBuilder.and(predicate, personService.getPersonTypePredicate(criteriaBuilder, root, command.getType()));
         }
 
         if (command.getId() != null)
@@ -82,38 +76,42 @@ public class PersonQueryService {
         }
 
 
-        if (command.getType() != null && command.getType().equalsIgnoreCase("employee")) {
-            Join<Employee, Employment> employmentJoin = root.join("employment", JoinType.INNER);
+//        if (command.getType() != null && command.getType().equalsIgnoreCase("employee")) {
+//            Join<Person, Employee> employeeJoin = root.join("employee", JoinType.INNER);
+//            Join<Employee, Employment> employmentJoin = employeeJoin.join("employment", JoinType.INNER);
+//
+//
+//
+//            Subquery<LocalDate> subquery = query.subquery(LocalDate.class);
+//            Root<Employment> subRoot = subquery.from(Employment.class);
+//            subquery.select(criteriaBuilder.greatest(subRoot.<LocalDate>get("startDate")))
+//                    .where(criteriaBuilder.equal(subRoot.get("employee"), employmentJoin));
+//
+//            predicate = criteriaBuilder.and(predicate, criteriaBuilder.equal(employmentJoin.get("startDate"), subquery));
+//
+//            if (command.getEmploymentStartDateFrom() != null) {
+//                LocalDate fromDateTime = command.getEmploymentStartDateFrom();
+//                predicate = criteriaBuilder.and(predicate, criteriaBuilder.greaterThanOrEqualTo(employmentJoin.get("startDate"), fromDateTime));
+//            }
+//
+//            if (command.getEmploymentStartDateTo() != null) {
+//                LocalDate toDateTime = command.getEmploymentStartDateTo();
+//                predicate = criteriaBuilder.and(predicate, criteriaBuilder.lessThanOrEqualTo(employmentJoin.get("startDate"), toDateTime));
+//            }
+//
+//            if (command.getPosition() != null) {
+//                predicate = criteriaBuilder.and(predicate, criteriaBuilder.equal(criteriaBuilder.lower(employmentJoin.get("position")), command.getPosition().toLowerCase()));
+//            }
+//
+//            if (command.getSalaryFrom() != null) {
+//                predicate = criteriaBuilder.and(predicate, criteriaBuilder.greaterThanOrEqualTo(employmentJoin.get("salary"), command.getSalaryFrom()));
+//            }
+//
+//            if (command.getSalaryTo() != null) {
+//                predicate = criteriaBuilder.and(predicate, criteriaBuilder.lessThanOrEqualTo(employmentJoin.get("salary"), command.getSalaryTo()));
+//            }
+//        }
 
-            Subquery<LocalDate> subquery = query.subquery(LocalDate.class);
-            Root<Employment> subRoot = subquery.from(Employment.class);
-            subquery.select(criteriaBuilder.greatest(subRoot.<LocalDate>get("startDate")))
-                    .where(criteriaBuilder.equal(subRoot.get("employee"), root));
-
-            predicate = criteriaBuilder.and(predicate, criteriaBuilder.equal(employmentJoin.get("startDate"), subquery));
-
-            if (command.getEmploymentStartDateFrom() != null) {
-                LocalDate fromDateTime = command.getEmploymentStartDateFrom();
-                predicate = criteriaBuilder.and(predicate, criteriaBuilder.greaterThanOrEqualTo(employmentJoin.get("startDate"), fromDateTime));
-            }
-
-            if (command.getEmploymentStartDateTo() != null) {
-                LocalDate toDateTime = command.getEmploymentStartDateTo();
-                predicate = criteriaBuilder.and(predicate, criteriaBuilder.lessThanOrEqualTo(employmentJoin.get("startDate"), toDateTime));
-            }
-
-            if (command.getPosition() != null) {
-                predicate = criteriaBuilder.and(predicate, criteriaBuilder.equal(criteriaBuilder.lower(employmentJoin.get("position")), command.getPosition().toLowerCase()));
-            }
-
-            if (command.getSalaryFrom() != null) {
-                predicate = criteriaBuilder.and(predicate, criteriaBuilder.greaterThanOrEqualTo(employmentJoin.get("salary"), command.getSalaryFrom()));
-            }
-
-            if (command.getSalaryTo() != null) {
-                predicate = criteriaBuilder.and(predicate, criteriaBuilder.lessThanOrEqualTo(employmentJoin.get("salary"), command.getSalaryTo()));
-            }
-        }
 
         if (command.getGraduatedUniversity() != null)
             predicate = criteriaBuilder.and(predicate, criteriaBuilder.equal(criteriaBuilder.lower(root.get("graduatedUniversity")), command.getGraduatedUniversity().toLowerCase()));
@@ -151,23 +149,23 @@ public class PersonQueryService {
         query.where(predicate);
 
         TypedQuery<Person> typedQuery = entityManager.createQuery(query);
-        List<Person> results = typedQuery.getResultList();
-
 
         int pageNumber = 0;
-        int pageSize = results.size() == 0 ? 1 : results.size();
+        int pageSize = 10;
         if (command.getPage() != null && command.getSize() != null) {
             pageNumber = command.getPageable().getPageNumber();
             pageSize = command.getPageable().getPageSize();
         }
+        typedQuery.setFirstResult(pageNumber * pageSize);
+        typedQuery.setMaxResults(pageSize);
+
+        List<Person> results = typedQuery.getResultList();
+
         Pageable pageable = PageRequest.of(pageNumber, pageSize);
 
         int totalResults = results.size();
-        int fromIndex = pageNumber * pageSize;
-        int toIndex = Math.min(fromIndex + pageSize, totalResults);
-        List<Person> pagedResults = results.subList(fromIndex, toIndex);
 
-        Page<Person> page = new PageImpl<>(pagedResults, pageable, totalResults);
+        Page<Person> page = new PageImpl<>(results, pageable, totalResults);
         return page;
 
     }

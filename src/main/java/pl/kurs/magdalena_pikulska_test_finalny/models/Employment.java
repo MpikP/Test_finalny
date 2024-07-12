@@ -29,6 +29,7 @@ public class Employment implements Serializable, Identificationable {
     private Employee employee;
 
     @Version
+    @Column(nullable = false)
     private Integer version = 1;
 
     public Employment() {
