@@ -1,5 +1,9 @@
 package pl.kurs.magdalena_pikulska_test_finalny.dto;
 
+import org.springframework.stereotype.Component;
+
+@Component
+@IDtoType("studentdto")
 public class StudentDto extends PersonDto {
 
     private String graduatedUniversity;

@@ -28,11 +28,17 @@ public class PersonQueryService {
     @Autowired
     private PersonService personService;
 
+
+
+
     @Transactional(readOnly = true)
     public Page<Person> getPersonByCriteria(FindPersonCommand command) {
         CriteriaBuilder criteriaBuilder = entityManager.getCriteriaBuilder();
         CriteriaQuery<Person> query = criteriaBuilder.createQuery(Person.class);
         Root<Person> root = query.from(Person.class);
+
+        Root<Employee> employeeRoot = criteriaBuilder.treat(root, Employee.class);
+        Join<Employee, Employment> employmentJoin = employeeRoot.join("employment");
 
         Predicate predicate = criteriaBuilder.conjunction();
 
@@ -76,41 +82,30 @@ public class PersonQueryService {
         }
 
 
-//        if (command.getType() != null && command.getType().equalsIgnoreCase("employee")) {
-//            Join<Person, Employee> employeeJoin = root.join("employee", JoinType.INNER);
-//            Join<Employee, Employment> employmentJoin = employeeJoin.join("employment", JoinType.INNER);
-//
-//
-//
-//            Subquery<LocalDate> subquery = query.subquery(LocalDate.class);
-//            Root<Employment> subRoot = subquery.from(Employment.class);
-//            subquery.select(criteriaBuilder.greatest(subRoot.<LocalDate>get("startDate")))
-//                    .where(criteriaBuilder.equal(subRoot.get("employee"), employmentJoin));
-//
-//            predicate = criteriaBuilder.and(predicate, criteriaBuilder.equal(employmentJoin.get("startDate"), subquery));
-//
-//            if (command.getEmploymentStartDateFrom() != null) {
-//                LocalDate fromDateTime = command.getEmploymentStartDateFrom();
-//                predicate = criteriaBuilder.and(predicate, criteriaBuilder.greaterThanOrEqualTo(employmentJoin.get("startDate"), fromDateTime));
-//            }
-//
-//            if (command.getEmploymentStartDateTo() != null) {
-//                LocalDate toDateTime = command.getEmploymentStartDateTo();
-//                predicate = criteriaBuilder.and(predicate, criteriaBuilder.lessThanOrEqualTo(employmentJoin.get("startDate"), toDateTime));
-//            }
-//
-//            if (command.getPosition() != null) {
-//                predicate = criteriaBuilder.and(predicate, criteriaBuilder.equal(criteriaBuilder.lower(employmentJoin.get("position")), command.getPosition().toLowerCase()));
-//            }
-//
-//            if (command.getSalaryFrom() != null) {
-//                predicate = criteriaBuilder.and(predicate, criteriaBuilder.greaterThanOrEqualTo(employmentJoin.get("salary"), command.getSalaryFrom()));
-//            }
-//
-//            if (command.getSalaryTo() != null) {
-//                predicate = criteriaBuilder.and(predicate, criteriaBuilder.lessThanOrEqualTo(employmentJoin.get("salary"), command.getSalaryTo()));
-//            }
-//        }
+        if (command.getType() != null && command.getType().equalsIgnoreCase("employee")) {
+
+            if (command.getEmploymentStartDateFrom() != null) {
+                LocalDate fromDateTime = command.getEmploymentStartDateFrom();
+                predicate = criteriaBuilder.and(predicate, criteriaBuilder.greaterThanOrEqualTo(employmentJoin.get("startDate"), fromDateTime));
+            }
+
+            if (command.getEmploymentStartDateTo() != null) {
+                LocalDate toDateTime = command.getEmploymentStartDateTo();
+                predicate = criteriaBuilder.and(predicate, criteriaBuilder.lessThanOrEqualTo(employmentJoin.get("startDate"), toDateTime));
+            }
+
+            if (command.getPosition() != null) {
+                predicate = criteriaBuilder.and(predicate, criteriaBuilder.equal(criteriaBuilder.lower(employmentJoin.get("position")), command.getPosition().toLowerCase()));
+            }
+
+            if (command.getSalaryFrom() != null) {
+                predicate = criteriaBuilder.and(predicate, criteriaBuilder.greaterThanOrEqualTo(employmentJoin.get("salary"), command.getSalaryFrom()));
+            }
+
+            if (command.getSalaryTo() != null) {
+                predicate = criteriaBuilder.and(predicate, criteriaBuilder.lessThanOrEqualTo(employmentJoin.get("salary"), command.getSalaryTo()));
+            }
+        }
 
 
         if (command.getGraduatedUniversity() != null)

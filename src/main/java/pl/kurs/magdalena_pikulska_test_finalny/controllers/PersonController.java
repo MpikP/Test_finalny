@@ -16,6 +16,7 @@ import pl.kurs.magdalena_pikulska_test_finalny.models.*;
 import pl.kurs.magdalena_pikulska_test_finalny.services.DynamicManagementService;
 import pl.kurs.magdalena_pikulska_test_finalny.services.EmploymentService;
 import pl.kurs.magdalena_pikulska_test_finalny.services.PersonQueryService;
+import pl.kurs.magdalena_pikulska_test_finalny.services.PersonTypeRegistry;
 
 @ComponentScan
 @RestController
@@ -25,12 +26,14 @@ public class PersonController {
     private DynamicManagementService dynamicManagementService;
     private PersonQueryService personQueryService;
     private EmploymentService employmentService;
+    private PersonTypeRegistry personTypeRegistry;
 
-    public PersonController(ModelMapper mapper, DynamicManagementService dynamicManagementService, PersonQueryService personQueryService, EmploymentService employmentService) {
+    public PersonController(ModelMapper mapper, DynamicManagementService dynamicManagementService, PersonQueryService personQueryService, EmploymentService employmentService, PersonTypeRegistry personTypeRegistry) {
         this.mapper = mapper;
         this.dynamicManagementService = dynamicManagementService;
         this.personQueryService = personQueryService;
         this.employmentService = employmentService;
+        this.personTypeRegistry = personTypeRegistry;
     }
 
     @GetMapping
@@ -66,14 +69,11 @@ public class PersonController {
 
     private Person convertCommandToPerson(IPersonCommand command) {
         String type = command.getType();
-        if (type.equalsIgnoreCase("student")) {
-            return mapper.map(command, Student.class);
-        } else if (type.equalsIgnoreCase("employee")) {
-            return mapper.map(command, Employee.class);
-        } else if (type.equalsIgnoreCase("pensioner")) {
-            return mapper.map(command, Pensioner.class);
-        } else {
-            throw new IllegalArgumentException("Unknown person type: " + type);
+        try {
+            Class<? extends Person> personClass = personTypeRegistry.getPersonClassByType(type);
+            return mapper.map(command, personClass);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Unknown person type: " + type, e);
         }
     }
 
@@ -83,30 +83,29 @@ public class PersonController {
             throw new IllegalArgumentException("Person cannot be null");
         }
 
-        String type = person.getClass().getSimpleName();
-        if (type.equalsIgnoreCase("employee")) {
-            Employee employee = mapper.map(person, Employee.class);
-            Employment currentEmployment = employmentService.getCurrentByEmployeeId(employee.getId());
-            Long qtyEmployments = employmentService.countEmploymentsByEmployeeId(employee.getId());
-            EmployeeDto employeeDto = mapper.map(person, EmployeeDto.class);
-            EmploymentDto currentEmploymentDto = mapper.map(currentEmployment, EmploymentDto.class);
-            employeeDto.setCurrentEmployment(currentEmploymentDto);
-            employeeDto.setQtyEmployments(qtyEmployments);
-            employeeDto.setType("Employee");
-            setCommonFields(employeeDto);
-            return employeeDto;
-        } else if (type.equalsIgnoreCase("student")) {
-            StudentDto studentDto = mapper.map(person, StudentDto.class);
-            studentDto.setType("Student");
-            setCommonFields(studentDto);
-            return studentDto;
-        } else if (type.equalsIgnoreCase("pensioner")) {
-            PensionerDto pensionerDto = mapper.map(person, PensionerDto.class);
-            pensionerDto.setType("Pensioner");
-            setCommonFields(pensionerDto);
-            return pensionerDto;
-        } else {
-            throw new IllegalArgumentException("Unknown person type: " + type);
+        String type = person.getClass().getSimpleName().toLowerCase();
+        try {
+            Class<? extends PersonDto> personDtoClass = personTypeRegistry.getPersonDtoClassByType(type);
+            PersonDto personDto = mapper.map(person, personDtoClass);
+            setCommonFields(personDto);
+
+            if (personDto instanceof EmployeeDto) {
+                Employee employee = (Employee) person;
+                Employment currentEmployment = employmentService.getCurrentByEmployeeId(employee.getId());
+                Long qtyEmployments = employmentService.countEmploymentsByEmployeeId(employee.getId());
+                EmployeeDto employeeDto = (EmployeeDto) personDto;
+                employeeDto.setCurrentEmployment(mapper.map(currentEmployment, EmploymentDto.class));
+                employeeDto.setQtyEmployments(qtyEmployments);
+                employeeDto.setType("Employee");
+            } else if (personDto instanceof StudentDto) {
+                ((StudentDto) personDto).setType("Student");
+            } else if (personDto instanceof PensionerDto) {
+                ((PensionerDto) personDto).setType("Pensioner");
+            }
+
+            return personDto;
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Unknown person type: " + type, e);
         }
 
     }
