@@ -37,6 +37,14 @@ public abstract class GenericManagementService<T extends Identificationable, R e
         return repository.save(entity);
     }
 
+    public void delete(T entity) {
+        if (entity.getId() == null) {
+            throw new WrongEntityStateException("Entity Id is null!");
+        }
+        repository.delete(entity);
+
+    }
+
     @Transactional
     protected void flush() {
         repository.flush();

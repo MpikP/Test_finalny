@@ -187,7 +187,5 @@ public class EmploymentService extends GenericManagementService<Employment, Empl
         return qty;
     }
 
-//    public Employment getById(Long id) {
-//        return getById(id);
-//    }
+
 }

@@ -40,15 +40,18 @@ public class ImportController {
         if (!file.getContentType().equals("text/csv")) {
             return ResponseEntity.badRequest().body("Only CSV files are allowed.");
         }
-        CompletableFuture<Long> importIdFuture  = importService.savePersonFromCsvFile(file);
-        Long importId;
+
+        ImportStatus importStatus;
         try {
-            importId = importIdFuture.get();
+            importStatus = importService.initializeImportStatus();
+            importService.savePersonFromCsvFile(file, importStatus);
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to process the import.");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to initiate the import.");
         }
 
-        return ResponseEntity.status(HttpStatus.CREATED).body("ImportId: " + importId);
+        ImportStatusDto importStatusDto = mapper.map(importStatus, ImportStatusDto.class);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(importStatusDto);
     }
 
     @GetMapping("/{id}")

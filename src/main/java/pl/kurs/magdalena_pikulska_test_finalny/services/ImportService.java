@@ -1,7 +1,11 @@
 package pl.kurs.magdalena_pikulska_test_finalny.services;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.web.multipart.MultipartFile;
 import pl.kurs.magdalena_pikulska_test_finalny.models.*;
 import pl.kurs.magdalena_pikulska_test_finalny.repositories.ImportStatusRepository;
@@ -15,85 +19,26 @@ import java.io.InputStreamReader;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.*;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
 @Service
 public class ImportService extends GenericManagementService<ImportStatus, ImportStatusRepository> {
 
+    @PersistenceContext
+    private EntityManager entityManager;
+
     private PersonRepository personRepository;
     private ImportStatusRepository importStatusRepository;
-    private final int batchSize = 50000;
-    private final Lock importLock = new ReentrantLock();
+    private ImportLockService importLockService;
 
-    public ImportService(ImportStatusRepository repository, PersonRepository personRepository, ImportStatusRepository importStatusRepository) {
+
+    public ImportService(ImportStatusRepository repository, PersonRepository personRepository, ImportStatusRepository importStatusRepository, ImportLockService importLockService) {
         super(repository);
         this.personRepository = personRepository;
         this.importStatusRepository = importStatusRepository;
+        this.importLockService = importLockService;
     }
 
-    @Async
-    @Transactional
-    public CompletableFuture<Long> savePersonFromCsvFile(MultipartFile file) throws Exception {
-        if (!importLock.tryLock()) {
-            throw new IllegalArgumentException("Another import is already in progress");
-        }
-
-        CompletableFuture<Long> resultFuture = new CompletableFuture<>();
-        try {
-            ImportStatus importStatus = initializeImportStatus();
-            processCsvFile(file, importStatus);
-            updateImportStatusAsCompleted(importStatus);
-            resultFuture.complete(importStatus.getId());
-        } catch (Exception e) {
-            throw new Exception("Failed to save persons from CSV file", e);
-        } finally {
-            importLock.unlock();
-        }
-
-        return resultFuture;
-    }
-
-    public List<Person> processCsvFile(final MultipartFile file, ImportStatus importStatus) throws Exception {
-        int counter = 0;
-        final List<Person> personList = new ArrayList<>();
-        try {
-            try (final BufferedReader br = new BufferedReader(new InputStreamReader(file.getInputStream()))) {
-                String line;
-                while ((line = br.readLine()) != null) {
-                    counter++;
-                    final String[] data = line.split(",");
-                    final Person person = processRecord(data);
-                    if (person != null) {
-                        personList.add(person);
-                    }
-                    if (counter % 5000 == 0) {
-                        personRepository.saveAll(personList);
-                        personList.clear();
-                        updateImportStatus(importStatus, counter);
-                    }
-                }
-                return personList;
-            }
-        } catch (IOException e) {
-            throw new Exception("Failed to parse CSV file", e);
-        }
-    }
-
-    private void updateImportStatus(ImportStatus importStatus, int processedCount) {
-        importStatus.setProcessedCount(processedCount);
-        importStatus.setStatus("IN PROGRESS");
-        importStatusRepository.save(importStatus);
-    }
-
-    private void updateImportStatusAsCompleted(ImportStatus importStatus) {
-        importStatus.setStatus("COMPLETED");
-        importStatus.setEndDate(LocalDateTime.now());
-        importStatusRepository.save(importStatus);
-    }
-
-    private ImportStatus initializeImportStatus() {
+    public ImportStatus initializeImportStatus() {
         ImportStatus importStatus = new ImportStatus();
         importStatus.setStatus("IN_PROGRESS");
         importStatus.setCreatedDate(LocalDateTime.now());
@@ -101,6 +46,94 @@ public class ImportService extends GenericManagementService<ImportStatus, Import
         importStatus.setProcessedCount(0);
         importStatusRepository.save(importStatus);
         return importStatus;
+    }
+
+
+
+    private ImportLock doLock() {
+        removeExpiredLock();
+        try {
+            ImportLock importLock = new ImportLock(LocalDateTime.now(), "IMPORT_PROCESS");
+            importLockService.add(importLock);
+            return importLock;
+        } catch (DuplicateKeyException e) {
+            return null;
+        }
+    }
+
+
+    private void releaseLock(ImportLock importLock) {
+        importLockService.delete(importLock);
+    }
+
+    private void removeExpiredLock() {
+        importLockService.deleteExpiredLock();
+    }
+
+
+    @Async
+    @Transactional
+    public void savePersonFromCsvFile(MultipartFile file, ImportStatus importStatus) throws Exception {
+        ImportLock lock = doLock();
+        if (lock == null) {
+            throw new IllegalArgumentException("Another import is already in progress");
+        }
+
+        try {
+            processCsvFile(file, importStatus);
+            updateImportStatusAsCompleted(importStatus);
+        } catch (Exception e) {
+            importStatus.setStatus("FAILED");
+            importStatusRepository.save(importStatus);
+            throw new Exception("Failed to save people from CSV file", e);
+        } finally {
+            releaseLock(lock);
+        }
+    }
+
+
+    public void processCsvFile(final MultipartFile file, ImportStatus importStatus) throws Exception {
+        int counter = 0;
+        final List<Person> personList = new ArrayList<>();
+        try (final BufferedReader br = new BufferedReader(new InputStreamReader(file.getInputStream()))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                counter++;
+                final String[] data = line.split(",");
+                final Person person = processRecord(data);
+                if (person != null) {
+                    personList.add(person);
+                }
+                if (counter % 5000 == 0) {
+                    personRepository.saveAll(personList);
+                    entityManager.flush();
+                    entityManager.clear();
+                    personList.clear();
+                    updateImportStatus(importStatus, counter);
+                }
+            }
+            if (!personList.isEmpty()) {
+                personRepository.saveAll(personList);
+                entityManager.flush();
+                entityManager.clear();
+            }
+        } catch (IOException e) {
+            throw new Exception("Failed to parse CSV file", e);
+        }
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void updateImportStatus(ImportStatus importStatus, int processedCount) {
+        importStatus.setProcessedCount(processedCount);
+        importStatus.setStatus("IN PROGRESS");
+        importStatusRepository.save(importStatus);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void updateImportStatusAsCompleted(ImportStatus importStatus) {
+        importStatus.setStatus("COMPLETED");
+        importStatus.setEndDate(LocalDateTime.now());
+        importStatusRepository.save(importStatus);
     }
 
     public Person processRecord(String[] line) {

@@ -18,6 +18,7 @@ import java.util.concurrent.CompletableFuture;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -61,15 +62,29 @@ class ImportControllerTest {
     public void testUploadFile_Success() throws Exception {
         MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "aaa,bbb".getBytes());
 
-        CompletableFuture<Long> resultFuture = new CompletableFuture<>();
-        resultFuture.complete(123L);
+        ImportStatus status = new ImportStatus();
+        status.setId(1L);
+        status.setStatus("COMPLETED");
+        ImportStatusDto statusDto = new ImportStatusDto();
+        statusDto.setId(1L);
+        statusDto.setStatus("COMPLETED");
 
-        when(importService.savePersonFromCsvFile(any(MultipartFile.class))).thenReturn(resultFuture);
+        when(importService.initializeImportStatus()).thenReturn(status);
+
+        doAnswer(invocation -> {
+            MultipartFile fileArgument = invocation.getArgument(0);
+            ImportStatus importStatusArgument = invocation.getArgument(1);
+            importStatusArgument.setStatus("COMPLETED");
+            return null;
+        }).when(importService).savePersonFromCsvFile(any(MultipartFile.class), any(ImportStatus.class));
+
+        when(mapper.map(any(ImportStatus.class), eq(ImportStatusDto.class))).thenReturn(statusDto);
 
         mockMvc.perform(multipart("/api/import/upload")
                         .file(file))
                 .andExpect(status().isOk())
-                .andExpect(content().string("ImportId: 123"));
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.status").value("COMPLETED"));
     }
 
     @Test
