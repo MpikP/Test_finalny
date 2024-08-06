@@ -5,17 +5,17 @@ import java.util.List;
 
 public class ExceptionResponseBodyDto {
 
-    private List<String> errorsMessages;
+    private List<FieldErrorDto> errorsMessages;
     private String errorCode;
     private Timestamp timestamp;
 
-    public ExceptionResponseBodyDto(List<String> errorsMessages, String errorCode, Timestamp timestamp) {
+    public ExceptionResponseBodyDto(List<FieldErrorDto> errorsMessages, String errorCode, Timestamp timestamp) {
         this.errorsMessages = errorsMessages;
         this.errorCode = errorCode;
         this.timestamp = timestamp;
     }
 
-    public List<String> getErrorsMessages() {
+    public List<FieldErrorDto> getErrorsMessages() {
         return errorsMessages;
     }
 

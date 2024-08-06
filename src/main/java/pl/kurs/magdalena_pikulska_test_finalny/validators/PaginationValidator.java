@@ -2,8 +2,7 @@ package pl.kurs.magdalena_pikulska_test_finalny.validators;
 
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
-import pl.kurs.magdalena_pikulska_test_finalny.commands.FindPersonCommand;
-import pl.kurs.magdalena_pikulska_test_finalny.commands.IPaginationCommand;
+import pl.kurs.magdalena_pikulska_test_finalny.commands.find.IPaginationCommand;
 
 public class PaginationValidator implements ConstraintValidator<Pagination, IPaginationCommand> {
 

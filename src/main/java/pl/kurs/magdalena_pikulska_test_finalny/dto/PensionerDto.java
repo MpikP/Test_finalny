@@ -3,7 +3,7 @@ package pl.kurs.magdalena_pikulska_test_finalny.dto;
 import org.springframework.stereotype.Component;
 
 @Component
-@IDtoType("pensionerdto")
+@PersonDtoType("pensionerdto")
 public class PensionerDto extends PersonDto {
     private Double pensionAmount;
     private Integer workedYear;

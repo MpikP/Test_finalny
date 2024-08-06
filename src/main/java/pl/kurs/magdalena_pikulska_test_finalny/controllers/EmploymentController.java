@@ -7,18 +7,16 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-//import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-import pl.kurs.magdalena_pikulska_test_finalny.commands.CreateEmploymentCommand;
-import pl.kurs.magdalena_pikulska_test_finalny.commands.FindEmploymentCommand;
-import pl.kurs.magdalena_pikulska_test_finalny.commands.UpdateEmploymentCommand;
+import pl.kurs.magdalena_pikulska_test_finalny.commands.create.CreateEmploymentCommand;
+import pl.kurs.magdalena_pikulska_test_finalny.commands.find.FindEmploymentCommand;
+import pl.kurs.magdalena_pikulska_test_finalny.commands.update.UpdateEmploymentCommand;
 import pl.kurs.magdalena_pikulska_test_finalny.dto.*;
 import pl.kurs.magdalena_pikulska_test_finalny.models.Employment;
-import pl.kurs.magdalena_pikulska_test_finalny.services.EmployeeService;
+import pl.kurs.magdalena_pikulska_test_finalny.services.personServices.EmployeeService;
 import pl.kurs.magdalena_pikulska_test_finalny.services.EmploymentService;
-import pl.kurs.magdalena_pikulska_test_finalny.services.PersonService;
 
 
 @ComponentScan
@@ -58,7 +56,7 @@ public class EmploymentController {
                     PersonDto employeeDto = mapper.map(f.getEmployee(), PersonDto.class);
                     employeeDto.setSex();
                     employeeDto.setAge();
-                    employmentDto.setEmployeeDto(employeeDto);
+                    employmentDto.setEmployee(employeeDto);
                     return employmentDto;
                 }
         );

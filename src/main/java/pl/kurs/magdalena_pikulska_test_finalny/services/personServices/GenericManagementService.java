@@ -1,4 +1,4 @@
-package pl.kurs.magdalena_pikulska_test_finalny.services;
+package pl.kurs.magdalena_pikulska_test_finalny.services.personServices;
 
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
@@ -6,9 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.repository.PagingAndSortingRepository;
 import pl.kurs.magdalena_pikulska_test_finalny.exceptions.WrongEntityStateException;
 import pl.kurs.magdalena_pikulska_test_finalny.models.Identificationable;
-import pl.kurs.magdalena_pikulska_test_finalny.models.Person;
-
-import java.util.List;
 
 @Transactional
 public abstract class GenericManagementService<T extends Identificationable, R extends JpaRepository<T, Long> & PagingAndSortingRepository<T, Long>> {
@@ -20,7 +17,7 @@ public abstract class GenericManagementService<T extends Identificationable, R e
 
     public T add(T entity) {
         if (entity.getId() != null)
-            throw new WrongEntityStateException("ID is not null!");
+            throw new WrongEntityStateException("ID", "null", "ID is not null!");
         return repository.save(entity);
     }
 
@@ -32,14 +29,15 @@ public abstract class GenericManagementService<T extends Identificationable, R e
     @Transactional
     public T edit(T entity) {
         if (entity.getId() == null) {
-            throw new WrongEntityStateException("Person Id is null!");
+            throw new WrongEntityStateException("ID", "null", "Person Id is null!");
         }
+
         return repository.save(entity);
     }
 
     public void delete(T entity) {
         if (entity.getId() == null) {
-            throw new WrongEntityStateException("Entity Id is null!");
+            throw new WrongEntityStateException("ID", "null", "Entity Id is null!");
         }
         repository.delete(entity);
 

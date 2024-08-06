@@ -10,35 +10,45 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-import pl.kurs.magdalena_pikulska_test_finalny.commands.*;
+import pl.kurs.magdalena_pikulska_test_finalny.commands.create.CreatePersonCommand;
+import pl.kurs.magdalena_pikulska_test_finalny.commands.find.FindPersonAdditionalFieldsCommand;
+import pl.kurs.magdalena_pikulska_test_finalny.commands.find.FindPersonCommand;
+import pl.kurs.magdalena_pikulska_test_finalny.commands.update.UpdatePersonCommand;
 import pl.kurs.magdalena_pikulska_test_finalny.dto.*;
 import pl.kurs.magdalena_pikulska_test_finalny.models.*;
 import pl.kurs.magdalena_pikulska_test_finalny.services.DynamicManagementService;
-import pl.kurs.magdalena_pikulska_test_finalny.services.EmploymentService;
-import pl.kurs.magdalena_pikulska_test_finalny.services.PersonQueryService;
+import pl.kurs.magdalena_pikulska_test_finalny.services.personQuery.PersonQueryService;
 import pl.kurs.magdalena_pikulska_test_finalny.services.PersonTypeRegistry;
+
+import java.util.Map;
 
 @ComponentScan
 @RestController
 @RequestMapping("/api/people")
 public class PersonController {
+
     private ModelMapper mapper;
     private DynamicManagementService dynamicManagementService;
     private PersonQueryService personQueryService;
-    private EmploymentService employmentService;
     private PersonTypeRegistry personTypeRegistry;
 
-    public PersonController(ModelMapper mapper, DynamicManagementService dynamicManagementService, PersonQueryService personQueryService, EmploymentService employmentService, PersonTypeRegistry personTypeRegistry) {
+    public PersonController(ModelMapper mapper, DynamicManagementService dynamicManagementService, PersonQueryService personQueryService, PersonTypeRegistry personTypeRegistry) {
         this.mapper = mapper;
         this.dynamicManagementService = dynamicManagementService;
         this.personQueryService = personQueryService;
-        this.employmentService = employmentService;
         this.personTypeRegistry = personTypeRegistry;
     }
 
+
     @GetMapping
     @PreAuthorize("hasRole('ADMIN') or hasRole('EMPLOYEE')")
-    ResponseEntity<Page<PersonDto>> getPeopleByTypeAndParams(@Validated @ModelAttribute FindPersonCommand command) {
+    ResponseEntity<Page<PersonDto>> getPeopleByTypeAndParams(@Validated @ModelAttribute FindPersonCommand command,
+                                                             @RequestParam Map<String, String> additionalParams) {
+        String type = command.getType();
+
+        if (type != null)
+            command.setAdditionalFieldsCommand(getFindPersonAdditionalFieldsCommand(type, additionalParams));
+
         Page<Person> peopleByCriteria = personQueryService.getPersonByCriteria(command);
         Page<PersonDto> pagePeopleDto = peopleByCriteria.map(
                 f -> convertPersonToPersonDto(f)
@@ -50,69 +60,67 @@ public class PersonController {
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<PersonDto> createPerson(@Validated @RequestBody CreatePersonCommand command) {
-        Person newPerson = convertCommandToPerson(command);
+        Person newPerson = convertCreateCommandToPerson(command);
         Person addedPerson = dynamicManagementService.addPerson(newPerson);
         Person person = addedPerson;
         PersonDto personDto = convertPersonToPersonDto(person);
         return ResponseEntity.status(HttpStatus.CREATED).body(personDto);
     }
 
+
     @PutMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> updatePerson(@Validated @RequestBody UpdatePersonCommand command) {
-        Person updatedPerson = convertCommandToPerson(command);
+        Person updatedPerson = convertUpdateCommandToPerson(command);
         Person person = dynamicManagementService.updatePerson(updatedPerson);
         PersonDto personDto = convertPersonToPersonDto(person);
         return ResponseEntity.ok(personDto);
     }
 
 
-    private Person convertCommandToPerson(IPersonCommand command) {
-        String type = command.getType();
+    private Person convertCreateCommandToPerson(CreatePersonCommand command) {
         try {
-            Class<? extends Person> personClass = personTypeRegistry.getPersonClassByType(type);
-            return mapper.map(command, personClass);
+            Class<? extends Person> personClass = personTypeRegistry.getPersonClassByType(command.getType());
+            return mapper.map(command.getPerson(), personClass);
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Unknown person type: " + type, e);
+            throw new IllegalArgumentException("Unknown person type: " + command.getType(), e);
         }
     }
 
-    private PersonDto convertPersonToPersonDto(Person person) {
 
+    private Person convertUpdateCommandToPerson(UpdatePersonCommand command) {
+        try {
+            Class<? extends Person> personClass = personTypeRegistry.getPersonClassByType(command.getType());
+            return mapper.map(command.getPerson(), personClass);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Unknown person type: " + command.getType());
+        }
+    }
+
+
+    private PersonDto convertPersonToPersonDto(Person person) {
         if (person == null) {
             throw new IllegalArgumentException("Person cannot be null");
         }
+        PersonDto personDto = dynamicManagementService.mapToDto(person);
+        return personDto;
+    }
 
-        String type = person.getClass().getSimpleName().toLowerCase();
-        try {
-            Class<? extends PersonDto> personDtoClass = personTypeRegistry.getPersonDtoClassByType(type);
-            PersonDto personDto = mapper.map(person, personDtoClass);
-            setCommonFields(personDto);
+    private FindPersonAdditionalFieldsCommand getFindPersonAdditionalFieldsCommand(String type, Map<String, String> additionalParams) {
 
-            if (personDto instanceof EmployeeDto) {
-                Employee employee = (Employee) person;
-                Employment currentEmployment = employmentService.getCurrentByEmployeeId(employee.getId());
-                Long qtyEmployments = employmentService.countEmploymentsByEmployeeId(employee.getId());
-                EmployeeDto employeeDto = (EmployeeDto) personDto;
-                employeeDto.setCurrentEmployment(mapper.map(currentEmployment, EmploymentDto.class));
-                employeeDto.setQtyEmployments(qtyEmployments);
-                employeeDto.setType("Employee");
-            } else if (personDto instanceof StudentDto) {
-                ((StudentDto) personDto).setType("Student");
-            } else if (personDto instanceof PensionerDto) {
-                ((PensionerDto) personDto).setType("Pensioner");
+        Class<? extends FindPersonAdditionalFieldsCommand> additionalClass = personTypeRegistry.getFindPersonCommandClassByType(type);
+
+        if (additionalClass != null) {
+            FindPersonAdditionalFieldsCommand additionalFieldsCommand;
+            try {
+                additionalFieldsCommand = additionalClass.getDeclaredConstructor().newInstance();
+                additionalFieldsCommand.mapParams(additionalParams);
+                return additionalFieldsCommand;
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Problem with map AdditionalFieldsCommand.");
             }
-
-            return personDto;
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Unknown person type: " + type, e);
+        } else {
+            throw new IllegalArgumentException("Unknown person type: " + type);
         }
-
     }
-
-    private void setCommonFields(PersonDto personDto) {
-        personDto.setSex();
-        personDto.setAge();
-    }
-
 }

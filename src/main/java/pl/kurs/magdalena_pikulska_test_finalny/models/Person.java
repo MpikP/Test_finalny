@@ -122,6 +122,7 @@ public abstract class Person implements Serializable, Identificationable {
         return Integer.parseInt(peselSplit[4] + peselSplit[5]);
     }
 
+
     @Override
     public boolean equals(Object o) {
 

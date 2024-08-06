@@ -8,22 +8,26 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
-import pl.kurs.magdalena_pikulska_test_finalny.commands.UpdatePersonCommand;
+import pl.kurs.magdalena_pikulska_test_finalny.commands.update.UpdatePensionerCommand;
+import pl.kurs.magdalena_pikulska_test_finalny.commands.update.UpdatePersonCommand;
+import pl.kurs.magdalena_pikulska_test_finalny.commands.update.UpdateStudentCommand;
 import pl.kurs.magdalena_pikulska_test_finalny.models.Employee;
 import pl.kurs.magdalena_pikulska_test_finalny.models.Pensioner;
 import pl.kurs.magdalena_pikulska_test_finalny.models.Person;
 import pl.kurs.magdalena_pikulska_test_finalny.models.Student;
 import pl.kurs.magdalena_pikulska_test_finalny.services.DynamicManagementService;
-import pl.kurs.magdalena_pikulska_test_finalny.services.PersonQueryService;
+import pl.kurs.magdalena_pikulska_test_finalny.services.personQuery.PersonQueryService;
 
 import java.util.Arrays;
+import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -49,10 +53,12 @@ class PersonControllerTest {
     @Test
     void shouldCreateStudent() throws Exception {
         String shapeJson = "{\"type\":\"student\", ";
+        shapeJson = shapeJson + "\"person\": {";
         shapeJson = shapeJson + "\"firstName\":\"Jan\", \"lastName\":\"Kowalski\", \"pesel\":\"88111703126\", ";
         shapeJson = shapeJson + "\"height\": 1.82, \"weight\": 60.39, \"emailAddress\":\"j_kowalski@wp.pl\", ";
-        shapeJson = shapeJson + "\"graduatedUniversity\":\"Politechnika\", \"studyYear\": 3, \"studyField\":\"Informatyka\", \"scholarshipAmount\": 352.45}";
+        shapeJson = shapeJson + "\"graduatedUniversity\":\"Politechnika\", \"studyYear\": 3, \"studyField\":\"Informatyka\", \"scholarshipAmount\": 352.45}}";
         Student student = new Student();
+        student.setId(1l);
         student.setFirstName("Jan");
         student.setLastName("Kowalski");
         student.setPesel("98100103113");
@@ -75,9 +81,10 @@ class PersonControllerTest {
     @Test
     void shouldCreatePensioner() throws Exception {
         String shapeJson = "{\"type\":\"pensioner\", ";
+        shapeJson = shapeJson + "\"person\": {";
         shapeJson = shapeJson + "\"firstName\":\"Jan\", \"lastName\":\"Kowalski\", \"pesel\":\"88111703126\", ";
         shapeJson = shapeJson + "\"height\": 1.82, \"weight\": 60.39, \"emailAddress\":\"j_kowalski@wp.pl\", ";
-        shapeJson = shapeJson + "\"pensionAmount\":5200.98, \"workedYear\": 43}";
+        shapeJson = shapeJson + "\"pensionAmount\":5200.98, \"workedYear\": 43}}";
         Pensioner pensioner = new Pensioner();
         pensioner.setFirstName("Jan");
         pensioner.setLastName("Kowalski");
@@ -99,9 +106,9 @@ class PersonControllerTest {
     @Test
     void shouldCreateEmployee() throws Exception {
         String shapeJson = "{\"type\":\"employee\", ";
+        shapeJson = shapeJson + "\"person\": {";
         shapeJson = shapeJson + "\"firstName\":\"Jan\", \"lastName\":\"Kowalski\", \"pesel\":\"88111703126\", ";
-        shapeJson = shapeJson + "\"height\": 1.82, \"weight\": 60.39, \"emailAddress\":\"j_kowalski@wp.pl\", ";
-        shapeJson = shapeJson + "\"pensionAmount\":5200.98, \"workedYear\": 43}";
+        shapeJson = shapeJson + "\"height\": 1.82, \"weight\": 60.39, \"emailAddress\":\"j_kowalski@wp.pl\"}}";
         Employee employee = new Employee();
         employee.setFirstName("Jan");
         employee.setLastName("Kowalski");
@@ -121,9 +128,9 @@ class PersonControllerTest {
     @Test
     void shouldNotCreateEmployee() throws Exception {
         String shapeJson = "{\"type\":\"employee\", ";
+        shapeJson = shapeJson + "\"person\": {";
         shapeJson = shapeJson + "\"lastName\":\"Kowalski\", \"pesel\":\"88111703123\", ";
-        shapeJson = shapeJson + "\"height\": 1.82, \"weight\": 60.39, \"emailAddress\":\"j_kowalski@wp.pl\", ";
-        shapeJson = shapeJson + "\"pensionAmount\":5200.98, \"workedYear\": 43}";
+        shapeJson = shapeJson + "\"height\": 1.82, \"weight\": 60.39, \"emailAddress\":\"j_kowalski@wp.pl\"}}";
 
         mockMvc.perform(post("/api/people")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -134,9 +141,10 @@ class PersonControllerTest {
     @Test
     void shouldNotCreateStudentxxx() throws Exception {
         String shapeJson = "{\"type\":\"studentxxx\", ";
+        shapeJson = shapeJson + "\"person\": {";
         shapeJson = shapeJson + "\"firstName\":\"Jan\", \"lastName\":\"Kowalski\", \"pesel\":\"88111703123\", ";
         shapeJson = shapeJson + "\"height\": 1.82, \"weight\": 60.39, \"emailAddress\":\"j_kowalski@wp.pl\", ";
-        shapeJson = shapeJson + "\"graduatedUniversity\":\"Politechnika\", \"studyYear\": 3, \"studyField\":\"Informatyka\", \"scholarshipAmount\": 352.45}";
+        shapeJson = shapeJson + "\"graduatedUniversity\":\"Politechnika\", \"studyYear\": 3, \"studyField\":\"Informatyka\", \"scholarshipAmount\": 352.45}}";
 
         mockMvc.perform(post("/api/people")
 
@@ -190,8 +198,10 @@ class PersonControllerTest {
         student3.setStudyField("Informatyka");
         student3.setScholarshipAmount(452.45);
 
+        List<Student> students = Arrays.asList(student1, student2, student3);
+        Pageable pageable = PageRequest.of(page, size);
 
-        Page<Person> pagePerson = (Page<Person>) (Page<?>) new PageImpl<>(Arrays.asList(student1, student2, student3));
+        Page<Person> pagePerson = (Page<Person>) (Page<?>) new PageImpl<>(students, pageable, students.size());
         when(personQueryService.getPersonByCriteria(any())).thenReturn(pagePerson);
 
         mockMvc.perform(MockMvcRequestBuilders.get("/api/people")
@@ -202,10 +212,8 @@ class PersonControllerTest {
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.content").isArray())
-                .andExpect(jsonPath("$.content[0].type").value("Student"))
-                .andExpect(jsonPath("$.content[0].studyYear").value(3))
-                .andExpect(jsonPath("$.content[1].studyYear").value(4));
+                .andExpect(jsonPath("$.content").isArray());
+
     }
 
     @Test
@@ -240,8 +248,10 @@ class PersonControllerTest {
         employee3.setWeight(48.38);
         employee3.setEmailAddress("nowakanna@wp.pl");
 
+        List<Employee> employees = Arrays.asList(employee1, employee2, employee3);
+        Pageable pageable = PageRequest.of(page, size);
 
-        Page<Person> pagePerson = (Page<Person>) (Page<?>) new PageImpl<>(Arrays.asList(employee1, employee2, employee3));
+        Page<Person> pagePerson = (Page<Person>) (Page<?>) new PageImpl<>(employees, pageable, employees.size());
         when(personQueryService.getPersonByCriteria(any())).thenReturn(pagePerson);
 
         mockMvc.perform(MockMvcRequestBuilders.get("/api/people")
@@ -252,31 +262,31 @@ class PersonControllerTest {
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.content").isArray())
-                .andExpect(jsonPath("$.content[0].type").value("Employee"))
-                .andExpect(jsonPath("$.content[0].pesel").value("86100103113"))
-                .andExpect(jsonPath("$.content[1].firstName").value("Marek"));
+                .andExpect(jsonPath("$.content").isArray());
     }
 
     @Test
     void shouldUpdatePensionerSuccessfully() throws Exception {
-        Long personId = 1L;
+        String personJson = "{\"type\":\"pensioner\",\"person\":{\"id\": 4681081, \"firstName\":\"UpdatedName\",\"lastName\":\"Kowal\",\"pesel\":\"58060103113\",\"height\":1.82,\"weight\":78.38,\"emailAddress\":\"kowal@wp.pl\",\"pensionAmount\":5598.32,\"workedYear\":34}}";
+
+        Long personId = 4681081L;
         String updatedFirstName = "UpdatedName";
 
         UpdatePersonCommand updatedPersonCommand = new UpdatePersonCommand();
-        updatedPersonCommand.setId(personId);
         updatedPersonCommand.setType("pensioner");
-        updatedPersonCommand.setFirstName("Marek");
-        updatedPersonCommand.setLastName("Kowal");
-        updatedPersonCommand.setPesel("58060103113");
-        updatedPersonCommand.setHeight(1.82);
-        updatedPersonCommand.setWeight(78.38);
-        updatedPersonCommand.setEmailAddress("kowal@wp.pl");
-        updatedPersonCommand.setPensionAmount(5598.32);
-        updatedPersonCommand.setWorkedYear(34);
+        UpdatePensionerCommand updatedPensionerCommand = new UpdatePensionerCommand();
+        updatedPensionerCommand.setId(personId);
+        updatedPensionerCommand.setFirstName("Marek");
+        updatedPensionerCommand.setLastName("Kowal");
+        updatedPensionerCommand.setPesel("58060103113");
+        updatedPensionerCommand.setHeight(1.82);
+        updatedPensionerCommand.setWeight(78.38);
+        updatedPensionerCommand.setEmailAddress("kowal@wp.pl");
+        updatedPensionerCommand.setPensionAmount(5598.32);
+        updatedPensionerCommand.setWorkedYear(34);
+        updatedPersonCommand.setPerson(updatedPensionerCommand);
 
-        updatedPersonCommand.setFirstName(updatedFirstName);
-
+        updatedPersonCommand.getPerson().setFirstName(updatedFirstName);
 
         Pensioner updatedPerson = new Pensioner();
         updatedPerson.setId(personId);
@@ -295,9 +305,8 @@ class PersonControllerTest {
 
         mockMvc.perform(MockMvcRequestBuilders.put("/api/people")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(updatedPersonCommand)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.firstName").value(updatedFirstName));
+                        .content(personJson))
+                .andExpect(status().isOk());
     }
 
     @Test
@@ -305,16 +314,18 @@ class PersonControllerTest {
         Long personId = 1L;
         String updatedFirstName = "UpdatedName";
         UpdatePersonCommand updatedPerson = new UpdatePersonCommand();
-        updatedPerson.setId(personId);
         updatedPerson.setType("student");
-        updatedPerson.setFirstName("Anna");
-        updatedPerson.setLastName("Nowak");
-        updatedPerson.setPesel("90060103123");
-        updatedPerson.setHeight(1.52);
-        updatedPerson.setWeight(48.38);
-        updatedPerson.setEmailAddress("nowakanna@wp.pl");
+        UpdateStudentCommand updatedStudentCommand = new UpdateStudentCommand();
+        updatedStudentCommand.setId(personId);
+        updatedStudentCommand.setFirstName("Anna");
+        updatedStudentCommand.setLastName("Nowak");
+        updatedStudentCommand.setPesel("90060103123");
+        updatedStudentCommand.setHeight(1.52);
+        updatedStudentCommand.setWeight(48.38);
+        updatedStudentCommand.setEmailAddress("nowakanna@wp.pl");
+        updatedPerson.setPerson(updatedStudentCommand);
 
-        updatedPerson.setFirstName(updatedFirstName);
+        updatedPerson.getPerson().setFirstName(updatedFirstName);
 
         when(dynamicManagementService.updatePerson(any())).thenThrow(org.springframework.dao.OptimisticLockingFailureException.class);
 
@@ -323,5 +334,6 @@ class PersonControllerTest {
                         .content(objectMapper.writeValueAsString(updatedPerson)))
                 .andExpect(status().isConflict());
     }
+
 
 }

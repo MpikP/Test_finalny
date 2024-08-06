@@ -2,6 +2,7 @@ package pl.kurs.magdalena_pikulska_test_finalny.services;
 
 import jakarta.persistence.*;
 import jakarta.persistence.criteria.*;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.transaction.annotation.Transactional;
 import jakarta.persistence.OptimisticLockException;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -10,9 +11,12 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import pl.kurs.magdalena_pikulska_test_finalny.commands.FindEmploymentCommand;
+import pl.kurs.magdalena_pikulska_test_finalny.commands.find.FindEmploymentCommand;
+import pl.kurs.magdalena_pikulska_test_finalny.dto.EmploymentDto;
+import pl.kurs.magdalena_pikulska_test_finalny.exceptions.CustomIllegalArgumentException;
 import pl.kurs.magdalena_pikulska_test_finalny.models.*;
 import pl.kurs.magdalena_pikulska_test_finalny.repositories.EmploymentRepository;
+import pl.kurs.magdalena_pikulska_test_finalny.services.personServices.GenericManagementService;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -29,7 +33,6 @@ public class EmploymentService extends GenericManagementService<Employment, Empl
     }
 
 
-
     @Transactional
     public Employment update(Employment employment) {
         try {
@@ -38,7 +41,7 @@ public class EmploymentService extends GenericManagementService<Employment, Empl
                 throw new OptimisticLockingFailureException("Data has been modified by another transaction");
             }
             if (ifDatesAreNotCorrect(employment.getEmployee().getId(), employment.getStartDate())) {
-                throw new IllegalArgumentException("Dates overlap with an existing employment.");
+                throw new CustomIllegalArgumentException("StartDate", employment.getStartDate().toString(), "Dates overlap with an existing employment.");
             }
             employment.setVersion(existingEmployment.getVersion());
 
@@ -49,10 +52,11 @@ public class EmploymentService extends GenericManagementService<Employment, Empl
     }
 
     @Transactional
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     public Employment addEmployment(Employment employment) {
 
         if (ifDatesAreNotCorrect(employment.getEmployee().getId(), employment.getStartDate())) {
-            throw new IllegalArgumentException("Dates overlap with an existing employment.");
+            throw new CustomIllegalArgumentException("StartDate", employment.getStartDate().toString(), "Dates overlap with an existing employment.");
         }
 
         Employment currentEmployment = getCurrentByEmployeeId(employment.getEmployee().getId());
@@ -146,7 +150,7 @@ public class EmploymentService extends GenericManagementService<Employment, Empl
     }
 
 
-    private boolean ifDatesAreNotCorrect(Long employeeId, LocalDate startDate) {
+    public boolean ifDatesAreNotCorrect(Long employeeId, LocalDate startDate) {
         TypedQuery<Employment> query = entityManager.createQuery(
                 "SELECT e FROM Employment e WHERE e.employee.id = :employeeId AND " +
                         "(e.endDate IS NULL OR e.endDate <= :startDate) AND " +
@@ -188,4 +192,12 @@ public class EmploymentService extends GenericManagementService<Employment, Empl
     }
 
 
+    public EmploymentDto mapToDto(Employment employment) {
+        EmploymentDto employmentDto = new EmploymentDto();
+        employmentDto.setPosition(employment.getPosition());
+        employmentDto.setSalary(employment.getSalary());
+        employmentDto.setStartDate(employment.getStartDate());
+        employmentDto.setEndDate(employment.getEndDate());
+        return employmentDto;
+    }
 }

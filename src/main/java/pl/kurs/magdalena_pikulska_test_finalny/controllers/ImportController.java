@@ -4,18 +4,15 @@ package pl.kurs.magdalena_pikulska_test_finalny.controllers;
 import org.modelmapper.ModelMapper;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-//import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import pl.kurs.magdalena_pikulska_test_finalny.exceptionhandling.ErrorMessageDto;
 import pl.kurs.magdalena_pikulska_test_finalny.dto.ImportStatusDto;
 import pl.kurs.magdalena_pikulska_test_finalny.models.ImportStatus;
 import pl.kurs.magdalena_pikulska_test_finalny.services.ImportService;
-
-import java.util.concurrent.CompletableFuture;
 
 
 @ComponentScan
@@ -35,19 +32,14 @@ public class ImportController {
     @PreAuthorize("hasRole('IMPORTER')")
     public ResponseEntity uploadFile(@RequestParam("file") MultipartFile file) throws Exception {
         if (file.isEmpty()) {
-            return ResponseEntity.badRequest().body("There is no file to import.");
+            return ResponseEntity.badRequest().body(new ErrorMessageDto("There is no file to import."));
         }
         if (!file.getContentType().equals("text/csv")) {
-            return ResponseEntity.badRequest().body("Only CSV files are allowed.");
+            return ResponseEntity.badRequest().body(new ErrorMessageDto("Only CSV files are allowed."));
         }
 
-        ImportStatus importStatus;
-        try {
-            importStatus = importService.initializeImportStatus();
-            importService.savePersonFromCsvFile(file, importStatus);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to initiate the import.");
-        }
+        ImportStatus importStatus = importService.initializeImportStatus();
+        importService.savePersonFromCsvFile(file, importStatus);
 
         ImportStatusDto importStatusDto = mapper.map(importStatus, ImportStatusDto.class);
 

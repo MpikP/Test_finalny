@@ -7,11 +7,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import pl.kurs.magdalena_pikulska_test_finalny.models.ImportLock;
 import pl.kurs.magdalena_pikulska_test_finalny.repositories.ImportLockRepository;
+import pl.kurs.magdalena_pikulska_test_finalny.services.personServices.GenericManagementService;
 
 import java.time.LocalDateTime;
 
 @Service
-public class ImportLockService  extends GenericManagementService<ImportLock, ImportLockRepository>{
+public class ImportLockService extends GenericManagementService<ImportLock, ImportLockRepository> {
 
     @PersistenceContext
     private EntityManager entityManager;

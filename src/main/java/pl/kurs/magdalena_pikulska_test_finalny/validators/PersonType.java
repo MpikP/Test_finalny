@@ -12,7 +12,7 @@ import java.lang.annotation.*;
 @Target({ElementType.FIELD, ElementType.ANNOTATION_TYPE, ElementType.PARAMETER})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface PersonType {
-    String message() default "Field: Type / message: Invalid person type.";
+    String message() default "Invalid person type.";
 
     Class<?>[] groups() default {};
 

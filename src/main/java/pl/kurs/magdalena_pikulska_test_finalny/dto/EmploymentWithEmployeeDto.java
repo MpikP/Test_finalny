@@ -8,7 +8,7 @@ public class EmploymentWithEmployeeDto {
     private LocalDate endDate;
     private String position;
     private Double salary;
-    private PersonDto employeeDto;
+    private PersonDto employee;
 
     public Long getId() {
         return id;
@@ -50,11 +50,11 @@ public class EmploymentWithEmployeeDto {
         this.salary = salary;
     }
 
-    public PersonDto getEmployeeDto() {
-        return employeeDto;
+    public PersonDto getEmployee() {
+        return employee;
     }
 
-    public void setEmployeeDto(PersonDto employeeDto) {
-        this.employeeDto = employeeDto;
+    public void setEmployee(PersonDto employee) {
+        this.employee = employee;
     }
 }

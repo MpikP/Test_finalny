@@ -1,35 +1,36 @@
-package pl.kurs.magdalena_pikulska_test_finalny.services;
+package pl.kurs.magdalena_pikulska_test_finalny.services.personQuery;
 
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.TypedQuery;
 import jakarta.persistence.criteria.*;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
-import pl.kurs.magdalena_pikulska_test_finalny.commands.FindPersonCommand;
+import pl.kurs.magdalena_pikulska_test_finalny.commands.find.FindPersonCommand;
 import pl.kurs.magdalena_pikulska_test_finalny.models.*;
+import pl.kurs.magdalena_pikulska_test_finalny.services.personServices.PersonService;
+import pl.kurs.magdalena_pikulska_test_finalny.services.PersonTypeRegistry;
 
 import java.time.LocalDate;
-import java.util.Arrays;
 import java.util.List;
 
 @Component
 public class PersonQueryService {
 
-    @PersistenceContext
     private EntityManager entityManager;
-
-    @Autowired
     private PersonService personService;
+    private PersonTypeRegistry personTypeRegistry;
+    private PersonPredicateClass personPredicateClass;
 
-
-
+    public PersonQueryService(EntityManager entityManager, PersonService personService, PersonTypeRegistry personTypeRegistry, PersonPredicateClass personPredicateClass) {
+        this.entityManager = entityManager;
+        this.personService = personService;
+        this.personTypeRegistry = personTypeRegistry;
+        this.personPredicateClass = personPredicateClass;
+    }
 
     @Transactional(readOnly = true)
     public Page<Person> getPersonByCriteria(FindPersonCommand command) {
@@ -37,13 +38,10 @@ public class PersonQueryService {
         CriteriaQuery<Person> query = criteriaBuilder.createQuery(Person.class);
         Root<Person> root = query.from(Person.class);
 
-        Root<Employee> employeeRoot = criteriaBuilder.treat(root, Employee.class);
-        Join<Employee, Employment> employmentJoin = employeeRoot.join("employment");
-
         Predicate predicate = criteriaBuilder.conjunction();
 
         if (command.getType() != null) {
-            predicate = criteriaBuilder.and(predicate, personService.getPersonTypePredicate(criteriaBuilder, root, command.getType()));
+            predicate = criteriaBuilder.and(predicate, personPredicateClass.getPersonTypePredicate(criteriaBuilder, root, command.getType()));
         }
 
         if (command.getId() != null)
@@ -81,65 +79,15 @@ public class PersonQueryService {
             predicate = addAgePredicates(criteriaBuilder, root, command.getAgeFrom(), command.getAgeTo(), predicate);
         }
 
+        if (command.getType() != null) {
 
-        if (command.getType() != null && command.getType().equalsIgnoreCase("employee")) {
+            Class<? extends AdditionalQueryService> clazz = personTypeRegistry.getAdditionalQueryServiceClassByType(command.getType());
+            IAdditionalQueryService additionalQueryService = personTypeRegistry.getAdditionQueryService(clazz);
 
-            if (command.getEmploymentStartDateFrom() != null) {
-                LocalDate fromDateTime = command.getEmploymentStartDateFrom();
-                predicate = criteriaBuilder.and(predicate, criteriaBuilder.greaterThanOrEqualTo(employmentJoin.get("startDate"), fromDateTime));
-            }
+            predicate = additionalQueryService.addAdditionalCriteria(criteriaBuilder, root, predicate, command.getAdditionalFieldsCommand());
 
-            if (command.getEmploymentStartDateTo() != null) {
-                LocalDate toDateTime = command.getEmploymentStartDateTo();
-                predicate = criteriaBuilder.and(predicate, criteriaBuilder.lessThanOrEqualTo(employmentJoin.get("startDate"), toDateTime));
-            }
-
-            if (command.getPosition() != null) {
-                predicate = criteriaBuilder.and(predicate, criteriaBuilder.equal(criteriaBuilder.lower(employmentJoin.get("position")), command.getPosition().toLowerCase()));
-            }
-
-            if (command.getSalaryFrom() != null) {
-                predicate = criteriaBuilder.and(predicate, criteriaBuilder.greaterThanOrEqualTo(employmentJoin.get("salary"), command.getSalaryFrom()));
-            }
-
-            if (command.getSalaryTo() != null) {
-                predicate = criteriaBuilder.and(predicate, criteriaBuilder.lessThanOrEqualTo(employmentJoin.get("salary"), command.getSalaryTo()));
-            }
         }
 
-
-        if (command.getGraduatedUniversity() != null)
-            predicate = criteriaBuilder.and(predicate, criteriaBuilder.equal(criteriaBuilder.lower(root.get("graduatedUniversity")), command.getGraduatedUniversity().toLowerCase()));
-
-        if (command.getStudyField() != null)
-            predicate = criteriaBuilder.and(predicate, criteriaBuilder.equal(criteriaBuilder.lower(root.get("studyField")), command.getStudyField().toLowerCase()));
-
-        if (command.getStudyYearFrom() != null)
-            predicate = criteriaBuilder.and(predicate, criteriaBuilder.greaterThanOrEqualTo(root.get("studyYear"), command.getStudyYearFrom()));
-
-        if (command.getStudyYearTo() != null)
-            predicate = criteriaBuilder.and(predicate, criteriaBuilder.lessThanOrEqualTo(root.get("studyYear"), command.getStudyYearTo()));
-
-        if (command.getStudyYear() != null)
-            predicate = criteriaBuilder.and(predicate, criteriaBuilder.equal(root.get("studyYear"), command.getStudyYearTo()));
-
-        if (command.getScholarshipAmountFrom() != null)
-            predicate = criteriaBuilder.and(predicate, criteriaBuilder.greaterThanOrEqualTo(root.get("scholarshipAmount"), command.getScholarshipAmountFrom()));
-
-        if (command.getScholarshipAmountTo() != null)
-            predicate = criteriaBuilder.and(predicate, criteriaBuilder.lessThanOrEqualTo(root.get("scholarshipAmount"), command.getScholarshipAmountTo()));
-
-        if (command.getPensionAmountFrom() != null)
-            predicate = criteriaBuilder.and(predicate, criteriaBuilder.greaterThanOrEqualTo(root.get("pensionAmount"), command.getPensionAmountFrom()));
-
-        if (command.getPensionAmountTo() != null)
-            predicate = criteriaBuilder.and(predicate, criteriaBuilder.lessThanOrEqualTo(root.get("pensionAmount"), command.getPensionAmountTo()));
-
-        if (command.getWorkedYearFrom() != null)
-            predicate = criteriaBuilder.and(predicate, criteriaBuilder.greaterThanOrEqualTo(root.get("workedYear"), command.getWorkedYearFrom()));
-
-        if (command.getWorkedYearTo() != null)
-            predicate = criteriaBuilder.and(predicate, criteriaBuilder.lessThanOrEqualTo(root.get("workedYear"), command.getWorkedYearTo()));
 
         query.where(predicate);
 

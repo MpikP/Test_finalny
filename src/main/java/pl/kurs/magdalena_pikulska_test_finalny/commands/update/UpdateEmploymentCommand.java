@@ -1,4 +1,4 @@
-package pl.kurs.magdalena_pikulska_test_finalny.commands;
+package pl.kurs.magdalena_pikulska_test_finalny.commands.update;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

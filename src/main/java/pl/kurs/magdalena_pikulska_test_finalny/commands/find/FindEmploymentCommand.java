@@ -1,4 +1,4 @@
-package pl.kurs.magdalena_pikulska_test_finalny.commands;
+package pl.kurs.magdalena_pikulska_test_finalny.commands.find;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -7,7 +7,7 @@ import pl.kurs.magdalena_pikulska_test_finalny.validators.Pagination;
 import java.time.LocalDate;
 
 @Pagination
-public class FindEmploymentCommand implements IPaginationCommand{
+public class FindEmploymentCommand implements IPaginationCommand {
     private Long id;
     private Long idEmployee;
     private LocalDate startDateFrom;

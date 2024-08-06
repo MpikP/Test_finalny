@@ -12,6 +12,7 @@ import pl.kurs.magdalena_pikulska_test_finalny.repositories.ImportStatusReposito
 import pl.kurs.magdalena_pikulska_test_finalny.repositories.PersonRepository;
 
 import org.springframework.transaction.annotation.Transactional;
+import pl.kurs.magdalena_pikulska_test_finalny.services.personServices.GenericManagementService;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -49,7 +50,6 @@ public class ImportService extends GenericManagementService<ImportStatus, Import
     }
 
 
-
     private ImportLock doLock() {
         removeExpiredLock();
         try {
@@ -72,7 +72,7 @@ public class ImportService extends GenericManagementService<ImportStatus, Import
 
 
     @Async
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void savePersonFromCsvFile(MultipartFile file, ImportStatus importStatus) throws Exception {
         ImportLock lock = doLock();
         if (lock == null) {
@@ -83,9 +83,8 @@ public class ImportService extends GenericManagementService<ImportStatus, Import
             processCsvFile(file, importStatus);
             updateImportStatusAsCompleted(importStatus);
         } catch (Exception e) {
-            importStatus.setStatus("FAILED");
-            importStatusRepository.save(importStatus);
-            throw new Exception("Failed to save people from CSV file", e);
+            handleImportFailure(importStatus);
+            throw new Exception("Failed to save people from CSV file");
         } finally {
             releaseLock(lock);
         }
@@ -120,6 +119,13 @@ public class ImportService extends GenericManagementService<ImportStatus, Import
         } catch (IOException e) {
             throw new Exception("Failed to parse CSV file", e);
         }
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void handleImportFailure(ImportStatus importStatus) {
+        importStatus.setProcessedCount(0);
+        importStatus.setStatus("FAILED");
+        importStatusRepository.save(importStatus);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
